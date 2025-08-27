@@ -1,3 +1,8 @@
+# My App
+
+[![CI](https://github.com/Haque02/demo_projejct/actions/workflows/ci.yml/badge.svg)](https://github.com/Haque02/demo_projejct/actions/workflows/ci.yml)
+[![Deploy Web App](https://github.com/Haque02/demo_projejct/actions/workflows/deploy-web.yml/badge.svg)](https://github.com/Haque02/demo_projejct/actions/workflows/deploy-web.yml)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

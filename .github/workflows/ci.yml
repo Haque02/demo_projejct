@@ -34,7 +34,17 @@ jobs:
       run: pnpm run typecheck
     
     - name: Run tests
-      run: pnpm run test
+      run: pnpm run test -- --coverage --watchAll=false --testResultsProcessor=jest-sonar-reporter
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          coverage/
+          test-report.xml
+        retention-days: 30
     
     - name: Build Next.js app
       run: pnpm run build

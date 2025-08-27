@@ -4,9 +4,15 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [ main ]
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -32,10 +38,27 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-files
+        name: nextjs-build
         path: |
           .next/
+          out/
           public/
-          next.config.ts
           package.json
+          next.config.ts
+        retention-days: 30
+        
+    - name: Create deployment package
+      run: |
+        mkdir -p deploy-package
+        cp -r .next deploy-package/
+        cp -r public deploy-package/
+        cp package.json deploy-package/
+        cp next.config.ts deploy-package/
+        tar -czf nextjs-app.tar.gz -C deploy-package .
+        
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-package
+        path: nextjs-app.tar.gz
         retention-days: 30

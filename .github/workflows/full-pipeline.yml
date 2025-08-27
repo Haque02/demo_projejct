@@ -1,0 +1,125 @@
+name: Full Release Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      deploy_web:
+        description: 'Deploy web app'
+        type: boolean
+        default: true
+      create_release:
+        description: 'Create desktop app release'
+        type: boolean
+        default: true
+
+jobs:
+  # 第一步: 运行完整的 CI 检查
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: latest
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Run all checks
+      run: |
+        pnpm run lint
+        pnpm run typecheck  
+        pnpm run test -- --coverage --watchAll=false
+        pnpm run build
+
+  # 第二步: 部署 Web 应用 (依赖质量检查)
+  deploy-web:
+    needs: quality-gate
+    if: ${{ inputs.deploy_web }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: latest
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+    
+    - name: Install and build
+      run: |
+        pnpm install
+        pnpm run build
+    
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-deployment-${{ inputs.version }}
+        path: |
+          .next/
+          public/
+          package.json
+        retention-days: 90
+
+  # 第三步: 创建标签和桌面应用发布 (依赖质量检查)
+  create-release:
+    needs: quality-gate
+    if: ${{ inputs.create_release }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Create and push tag
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git tag ${{ inputs.version }}
+        git push origin ${{ inputs.version }}
+    
+    - name: Trigger release workflow
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'release.yml',
+            ref: '${{ inputs.version }}'
+          })
+
+  # 第四步: 汇总报告
+  summary:
+    needs: [quality-gate, deploy-web, create-release]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Summary Report
+      run: |
+        echo "## 🚀 Release Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Quality Gate**: ${{ needs.quality-gate.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Web Deployment**: ${{ needs.deploy-web.result }}" >> $GITHUB_STEP_SUMMARY  
+        echo "**Desktop Release**: ${{ needs.create-release.result }}" >> $GITHUB_STEP_SUMMARY
